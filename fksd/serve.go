@@ -17,6 +17,7 @@ func ednsFromRequest(req, m *dns.Msg) {
 	return
 }
 
+//ANY
 func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 	if z == nil {
 		panic("fksd: no zone")

@@ -16,7 +16,7 @@ const (
 
 // fks config
 type Config struct {
-	Server *dns.Server	    // Server instance for this configuration
+	Server *dns.Server          // Server instance for this configuration
 	Zones  map[string]*dns.Zone // All zones we are authoritative for
 	Rights map[string]int       // Rights for all users
 }
@@ -53,15 +53,56 @@ func configRights(user string, c *Config) {
 
 }
 
+// Create DNS packet with the config in line with the meta zone
+// paper from Vixie
+func metazone(w dns.ResponseWriter, req *dns.Msg, c *Config) {
+	logPrintf("metazone command")
+
+	// Only called when the class is CHAOS
+	// PTR zone.	-> get a list of zone names
+
+	// Top level zone stuff -- list them
+	if strings.ToUpper(req.Question[0].Name) == "ZONE." {
+		m := new(dns.Msg)
+		m.SetReply(req)
+		for _, z := range c.Zones {
+			ptr, _ := dns.NewRR("zone. CH PTR " + z.Origin)
+			m.Answer = append(m.Answer, ptr)
+		}
+		w.Write(m)
+		return
+	}
+
+	// Top level user stuff -- list them
+	if strings.ToUpper(req.Question[0].Name) == "USER." {
+
+	}
+
+	// <zone>.ZONE.
+
+		formerr(w, req)
+		return
+}
+
 // config stuff in Auth section (just as dynamic updates (*hint* *hint*)
 // SUBSYSTEM. IN TXT "OPERATION<SPACE>OPTIONS..."
 // ZONE. IN TXT "READ origin /z/bloep" - absolute path in fs
 func config(w dns.ResponseWriter, req *dns.Msg, c *Config) {
 	logPrintf("config command")
 
-	if !req.IsTsig() {
-		logPrintf("non config command (no tsig)")
+	if req.Question[0].Qclass != dns.ClassCHAOS {
+		logPrintf("non config command (wrong class)")
+		if z, ok := c.Zones[req.Question[0].Name]; ok {
+			serve(w, req, z)
+			return
+		}
 		formerr(w, req)
+		return
+	}
+
+	if !req.IsTsig() {
+		logPrintf("non config command (no tsig) - attemping metazone")
+		metazone(w, req, c)
 		return
 	}
 

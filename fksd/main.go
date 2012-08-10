@@ -35,10 +35,9 @@ func main() {
 		}
 	}()
 
-	// Yes, we HIJACK zone. ... not sure on how to make this "private"
-	dns.HandleFunc("ZONE.", func(w dns.ResponseWriter, req *dns.Msg) { config(w, req, conf) })
-	// Gasp!! And USER.
-	dns.HandleFunc("USER.", func(w dns.ResponseWriter, req *dns.Msg) { config(w, req, conf) })
+	// Hijack these zone names, but only if they use the CLASS 65516
+	dns.HandleFunc("zone.", func(w dns.ResponseWriter, req *dns.Msg) { config(w, req, conf) })
+	dns.HandleFunc("user.", func(w dns.ResponseWriter, req *dns.Msg) { config(w, req, conf) })
 
 	sig := make(chan os.Signal)
 	signal.Notify(sig, os.Interrupt)
