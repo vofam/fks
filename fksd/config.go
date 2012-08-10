@@ -66,7 +66,7 @@ func metazone(w dns.ResponseWriter, req *dns.Msg, c *Config) {
 		m := new(dns.Msg)
 		m.SetReply(req)
 		for _, z := range c.Zones {
-			ptr, _ := dns.NewRR("zone. CH PTR " + z.Origin)
+			ptr, _ := dns.NewRR("zone. 0 CH PTR " + z.Origin)
 			m.Answer = append(m.Answer, ptr)
 		}
 		w.Write(m)
