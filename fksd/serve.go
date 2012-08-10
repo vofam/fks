@@ -17,7 +17,6 @@ func ednsFromRequest(req, m *dns.Msg) {
 	return
 }
 
-//ANY
 func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 	if z == nil {
 		panic("fksd: no zone")
@@ -103,12 +102,12 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 		return
 	}
 
-	apex := z.Find(z.Origin)
 
 	if rrs, ok := node.RR[req.Question[0].Qtype]; ok {
 		m.SetReply(req)
 		m.MsgHdr.Authoritative = true
 		m.Answer = rrs
+		apex := z.Find(z.Origin)
 		m.Ns = apex.RR[dns.TypeNS]
 		ednsFromRequest(req, m)
 		w.Write(m)
@@ -116,8 +115,22 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 	} else { // NoData reply or CNAME
 		m.SetReply(req)
 		if cname, ok := node.RR[dns.TypeCNAME]; ok {
-			m.Answer = cname // tODO
+			m.Answer = cname
+			/*
+			i  := 0
+			for cname.Rrtype == dns.TypeCNAME {
+				
+
+			}
+			*/
+
+
+			// Lookup cname.Target
+
+			// get cname RRssss
+
 		}
+		apex := z.Find(z.Origin)
 		m.Ns = apex.RR[dns.TypeSOA]
 		ednsFromRequest(req, m)
 		w.Write(m)
