@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/miek/gdns"
+	"github.com/miekg/dns"
 	"strings"
 )
 
