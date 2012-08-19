@@ -3,8 +3,8 @@ package main
 // TODO: locking, tsig (need key list to rewrap the queries)
 
 import (
-	"dns"
 	"flag"
+	"github.com/miekg/dns"
 	"log"
 	"os"
 	"os/signal"
@@ -13,10 +13,10 @@ import (
 )
 
 var (
-	listen  = flag.String("listen", ":8053", "set the listener address")
-	server  = flag.String("server", ":53", "remote server address")
-	flagttl = flag.Int("ttl", 30, "ttl (in seconds) for cached packets")
-	flaglog = flag.Bool("log", false, "be more verbose")
+	listen     = flag.String("listen", ":8053", "set the listener address")
+	server     = flag.String("server", ":53", "remote server address")
+	flagttl    = flag.Int("ttl", 30, "ttl (in seconds) for cached packets")
+	flaglog    = flag.Bool("log", false, "be more verbose")
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 )
 
