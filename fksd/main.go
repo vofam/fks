@@ -6,11 +6,13 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 )
 
 var (
 	flaglog   = flag.Bool("log", false, "log incoming queries")
+	port = flag.Int("port", 1035, "port to use")
 	superuser = flag.String("user", "root", "username to use for the superuser")
 	superkey  = flag.String("key", "c3R1cGlk", "base64 tsig key for superuser authentication")
 )
@@ -22,14 +24,15 @@ func main() {
 	conf.Rights[*superuser] = R_LIST | R_WRITE | R_DROP | R_USER // *all* of them
 
 	go func() {
-		err := dns.ListenAndServe(":1053", "udp", nil)
+		conf.ServerUDP = &dns.Server{Addr: ":" + strconv.Itoa(*port) , Net: "tcp", TsigSecret: map[string]string{dns.Fqdn(*superuser): *superkey}}
+		err := conf.ServerUDP.ListenAndServe()
 		if err != nil {
-			log.Fatal("fksd: could not start server listener: %s", err.Error())
+			log.Fatal("fksd: could not start config listener: %s", err.Error())
 		}
 	}()
 	go func() {
-		conf.Server = &dns.Server{Addr: ":1053", Net: "tcp", TsigSecret: map[string]string{dns.Fqdn(*superuser): *superkey}}
-		err := conf.Server.ListenAndServe()
+		conf.ServerTCP = &dns.Server{Addr: ":" + strconv.Itoa(*port), Net: "tcp", TsigSecret: map[string]string{dns.Fqdn(*superuser): *superkey}}
+		err := conf.ServerTCP.ListenAndServe()
 		if err != nil {
 			log.Fatal("fksd: could not start config listener: %s", err.Error())
 		}
