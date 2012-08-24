@@ -35,8 +35,7 @@ func serve(w dns.ResponseWriter, r *dns.Msg, c *Cache) {
 		return
 	}
 	if p := c.Find(r); p != nil {
-		b := []byte{0, 0}
-		dns.RawSetId(b, r.MsgHdr.Id)
+		b := []byte{byte(r.MsgHdr.Id >> 8), byte(r.MsgHdr.Id)}
 		p = append(b, p...)
 		w.WriteBuf(p)
 		return
