@@ -16,9 +16,10 @@ const (
 
 // fks config
 type Config struct {
-	Server *dns.Server          // Server instance for this configuration
-	Zones  map[string]*dns.Zone // All zones we are authoritative for
-	Rights map[string]int       // Rights for all users
+	ServerTCP *dns.Server          // Server instance for this configuration
+	ServerUDP *dns.Server          // Server instance for this configuration
+	Zones     map[string]*dns.Zone // All zones we are authoritative for
+	Rights    map[string]int       // Rights for all users
 }
 
 func NewConfig() *Config {
@@ -66,7 +67,7 @@ func metazone(w dns.ResponseWriter, req *dns.Msg, c *Config) {
 		m := new(dns.Msg)
 		m.SetReply(req)
 		for _, z := range c.Zones {
-			ptr, _ := dns.NewRR("zone. CH PTR " + z.Origin)
+			ptr, _ := dns.NewRR("zone. 0 CH PTR " + z.Origin)
 			m.Answer = append(m.Answer, ptr)
 		}
 		w.Write(m)
@@ -80,8 +81,8 @@ func metazone(w dns.ResponseWriter, req *dns.Msg, c *Config) {
 
 	// <zone>.ZONE.
 
-		formerr(w, req)
-		return
+	formerr(w, req)
+	return
 }
 
 // config stuff in Auth section (just as dynamic updates (*hint* *hint*)
@@ -219,7 +220,7 @@ func configUSER(w dns.ResponseWriter, req *dns.Msg, t *dns.RR_TXT, c *Config) er
 			return nil
 		}
 		logPrintf("config ADD %s with %s\n", dns.Fqdn(sx[1]), sx[2])
-		c.Server.TsigSecret[dns.Fqdn(sx[1])] = sx[2]
+		c.ServerTCP.TsigSecret[dns.Fqdn(sx[1])] = sx[2]
 		c.Rights[dns.Fqdn(sx[1])] = R_NONE
 		noerr(w, req)
 	case "DROP":
@@ -227,11 +228,11 @@ func configUSER(w dns.ResponseWriter, req *dns.Msg, t *dns.RR_TXT, c *Config) er
 			return nil
 		}
 		logPrintf("config DROP %s\n", dns.Fqdn(sx[1]))
-		delete(c.Server.TsigSecret, dns.Fqdn(sx[1]))
+		delete(c.ServerTCP.TsigSecret, dns.Fqdn(sx[1]))
 		delete(c.Rights, dns.Fqdn(sx[1]))
 		noerr(w, req)
 	case "LIST":
-		for u, p := range c.Server.TsigSecret {
+		for u, p := range c.ServerTCP.TsigSecret {
 			logPrintf("config USER %s: %s\n", u, p)
 		}
 		fallthrough
