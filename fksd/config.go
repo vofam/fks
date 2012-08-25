@@ -101,7 +101,7 @@ func config(w dns.ResponseWriter, req *dns.Msg, c *Config) {
 		return
 	}
 
-	if req.IsTsig() != nil {
+	if req.IsTsig() == nil {
 		logPrintf("non config command (no tsig) - attemping metazone")
 		metazone(w, req, c)
 		return
