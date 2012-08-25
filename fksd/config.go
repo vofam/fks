@@ -32,7 +32,7 @@ func NewConfig() *Config {
 func formerr(w dns.ResponseWriter, req *dns.Msg) {
 	m := new(dns.Msg)
 	m.MsgHdr.Opcode = dns.OpcodeUpdate
-	if req.IsTsig() {
+	if req.IsTsig() != nil {
 		m.SetTsig(userFromTsig(req), dns.HmacMD5, 300, time.Now().Unix())
 	}
 	w.Write(m.SetRcode(req, dns.RcodeFormatError))
@@ -101,7 +101,7 @@ func config(w dns.ResponseWriter, req *dns.Msg, c *Config) {
 		return
 	}
 
-	if !req.IsTsig() {
+	if req.IsTsig() == nil {
 		logPrintf("non config command (no tsig) - attemping metazone")
 		metazone(w, req, c)
 		return
