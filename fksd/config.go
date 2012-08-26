@@ -107,7 +107,7 @@ func config(w dns.ResponseWriter, req *dns.Msg, c *Config) {
 		return
 	}
 
-	if !req.IsUpdate() {
+	if req.MsgHdr.Opcode != dns.OpcodeUpdate || req.Question[0].Qtype != dns.TypeSOA  {
 		logPrintf("non config command (no update)")
 		formerr(w, req)
 		return
