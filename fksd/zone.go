@@ -46,7 +46,7 @@ func (c *Config) ReadZoneXfr(origin, master string) error {
 		for r := range t {
 			if r.Error == nil {
 				// Loop answer section
-				for _, rr := range r.Reply.Answer {
+				for _, rr := range r.RR {
 					z.Insert(rr)
 				}
 			}
