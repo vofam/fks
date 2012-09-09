@@ -1,7 +1,5 @@
-* wildcard
-* locking r/w or copy-on-write in radix
+* wildcard answer for when found
 * check message length
-* ds handling in serve()
 * tsig
 * dynamic updates
 * zone transfers
