@@ -17,39 +17,41 @@ func ednsFromRequest(req, m *dns.Msg) {
 	return
 }
 
-func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
-	if z == nil {
-		panic("fksd: no zone")
+func findGlue(m *dns.Msg, z *dns.Zone, nameserver string) {
+	glue, ok := z.Find(nameserver)
+	if ok {
+		if a4, ok := glue.RR[dns.TypeAAAA]; ok {
+			m.Extra = append(m.Extra, a4...)
+			return
+		}
+		if a, ok := glue.RR[dns.TypeA]; ok {
+			m.Extra = append(m.Extra, a...)
+			return
+		}
 	}
+	// length or the returned packet! TODO(mg)
+	return
+}
 
-	// Just NACK ANYs
-	if req.Question[0].Qtype == dns.TypeANY {
-		m := new(dns.Msg)
-		m.SetRcode(req, dns.RcodeServerFailure)
-		ednsFromRequest(req, m)
-		w.Write(m)
+func findApex(m *dns.Msg, z *dns.Zone) {
+	apex, exact := z.Find(z.Origin)
+	if exact {
+		// What if we don't have this? TODO(mg)
+		m.Ns = apex.RR[dns.TypeSOA]
 	}
+	return
+}
 
-	logPrintf("[zone %s] incoming %s %s %d from %s\n", z.Origin, req.Question[0].Name, dns.Rr_str[req.Question[0].Qtype], req.MsgHdr.Id, w.RemoteAddr())
-	// if we find something with NonAuth = true, it means we need to return referral
-	nss := z.Predecessor(req.Question[0].Name)
-	m := new(dns.Msg)
-	if nss != nil && nss.NonAuth {
+// Handle exact match
+func exactMatch(w dns.ResponseWriter, req, m *dns.Msg, z *dns.Zone, node *dns.ZoneData) {
+	logPrintf("[zone %s] exact match for %s\n", z.Origin, req.Question[0].Name)
+	if parent := z.Up(req.Question[0].Name); parent != nil && parent.NonAuth {
+		logPrintf("[zone %s] referral due\n", z.Origin)
 		m.SetReply(req)
-		m.Ns = nss.RR[dns.TypeNS]
+		m.Ns = parent.RR[dns.TypeNS]
 		for _, n := range m.Ns {
 			if dns.IsSubDomain(n.(*dns.RR_NS).Ns, n.Header().Name) {
-				// Need glue
-				glue := z.Find(n.(*dns.RR_NS).Ns)
-				if glue != nil {
-					if a4, ok := glue.RR[dns.TypeAAAA]; ok {
-						m.Extra = append(m.Extra, a4...)
-					}
-					if a, ok := glue.RR[dns.TypeA]; ok {
-						m.Extra = append(m.Extra, a...)
-					}
-					// length
-				}
+				findGlue(m, z, n.(*dns.RR_NS).Ns)
 			}
 		}
 		ednsFromRequest(req, m)
@@ -57,58 +59,25 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 		return
 	}
 
-	// If we don't have the name return NXDOMAIN
-	node := z.Find(req.Question[0].Name)
-	if node == nil {
-		if z.Wildcard > 0 {
-			lx := dns.SplitLabels(req.Question[0].Name)
-			wc := "*." + strings.Join(lx[1:], ".")
-			node = z.Find(wc)
-			if node != nil {
-				goto Wildcard
-			}
-		}
-		m.SetRcode(req, dns.RcodeNameError)
-		ednsFromRequest(req, m)
-		w.Write(m)
-		return
-	}
-
-	Wildcard:
-
-	// We have the name it isn't a referral, but it may that
-	// we still have NSs for this name. If we have nss and they
-	// are NonAuth true return those.
+	// If we have NS records for this name we need to give out a referral
 	if nss, ok := node.RR[dns.TypeNS]; ok && node.NonAuth {
 		m.SetReply(req)
 		m.Ns = nss
 		for _, n := range m.Ns {
 			if dns.IsSubDomain(n.(*dns.RR_NS).Ns, n.Header().Name) {
-				// Need glue
-				glue := z.Find(n.(*dns.RR_NS).Ns)
-				if glue != nil {
-					if a4, ok := glue.RR[dns.TypeAAAA]; ok {
-						m.Extra = append(m.Extra, a4...)
-					}
-					if a, ok := glue.RR[dns.TypeA]; ok {
-						m.Extra = append(m.Extra, a...)
-					}
-					// length
-				}
+				findGlue(m, z, n.(*dns.RR_NS).Ns)
 			}
 		}
 		ednsFromRequest(req, m)
 		w.Write(m)
 		return
 	}
-
-
+	// If we have the actual type too
 	if rrs, ok := node.RR[req.Question[0].Qtype]; ok {
 		m.SetReply(req)
 		m.MsgHdr.Authoritative = true
 		m.Answer = rrs
-		apex := z.Find(z.Origin)
-		m.Ns = apex.RR[dns.TypeNS]
+		findApex(m, z)
 		ednsFromRequest(req, m)
 		w.Write(m)
 		return
@@ -117,26 +86,77 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 		if cname, ok := node.RR[dns.TypeCNAME]; ok {
 			m.Answer = cname
 			/*
-			i  := 0
-			for cname.Rrtype == dns.TypeCNAME {
-				
+				i  := 0
+				for cname.Rrtype == dns.TypeCNAME {
 
-			}
+
+				}
 			*/
-
-
 			// Lookup cname.Target
-
 			// get cname RRssss
 
 		}
-		apex := z.Find(z.Origin)
-		m.Ns = apex.RR[dns.TypeSOA]
-		ednsFromRequest(req, m)
+		findApex(m, z)
 		w.Write(m)
 		return
 	}
 	m.SetRcode(req, dns.RcodeNameError)
 	ednsFromRequest(req, m)
 	w.Write(m)
+	return
+}
+
+func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
+	if z == nil {
+		panic("fksd: no zone")
+	}
+
+	m := new(dns.Msg)
+	// Just NACK ANYs
+	if req.Question[0].Qtype == dns.TypeANY {
+		m.SetRcode(req, dns.RcodeServerFailure)
+		ednsFromRequest(req, m)
+		w.Write(m)
+		return
+	}
+
+	logPrintf("[zone %s] incoming %s %s %d from %s\n", z.Origin, req.Question[0].Name, dns.Rr_str[req.Question[0].Qtype], req.MsgHdr.Id, w.RemoteAddr())
+	node, exact := z.Find(req.Question[0].Name)
+	if exact {
+		exactMatch(w, req, m, z, node)
+	}
+	if node != nil && node.NonAuth {
+		logPrintf("[zone %s] referral due\n", z.Origin)
+		m.SetReply(req)
+		m.Ns = node.RR[dns.TypeNS]
+		for _, n := range m.Ns {
+			if dns.IsSubDomain(n.(*dns.RR_NS).Ns, n.Header().Name) {
+				findGlue(m, z, n.(*dns.RR_NS).Ns)
+			}
+		}
+		ednsFromRequest(req, m)
+		w.Write(m)
+		return
+	}
+
+	// Not an exact match, but do we have a wildcard
+	// If we don't have the name return NXDOMAIN
+	if z.Wildcard > 0 {
+		lx := dns.SplitLabels(req.Question[0].Name)
+		wc := "*." + strings.Join(lx[1:], ".")
+		node, exact = z.Find(wc)
+		if exact {
+			logPrintf("[zone %s] wildcard answer\n", z.Origin)
+			// as exact,but not complete -- only the last part
+		}
+		m.SetRcode(req, dns.RcodeNameError)
+		ednsFromRequest(req, m)
+		w.Write(m)
+		return
+	}
+
+	m.SetRcode(req, dns.RcodeNameError)
+	ednsFromRequest(req, m)
+	w.Write(m)
+	return
 }
