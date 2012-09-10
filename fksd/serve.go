@@ -17,6 +17,22 @@ func ednsFromRequest(req, m *dns.Msg) {
 	return
 }
 
+func answer(w dns.ResponseWriter, m, req *dns.Msg, answer []dns.RR, z *dns.Zone) {
+	m.SetReply(req)
+	m.MsgHdr.Authoritative = true
+	m.Answer = answer
+	findApex(m, z)
+	ednsFromRequest(req, m)
+	w.Write(m)
+	return
+}
+
+func nameerror(w dns.ResponseWriter, m, req *dns.Msg) {
+	m.SetRcode(req, dns.RcodeNameError)
+	ednsFromRequest(req, m)
+	w.Write(m)
+}
+
 func findGlue(m *dns.Msg, z *dns.Zone, nameserver string) {
 	glue, ok := z.Find(nameserver)
 	if ok {
@@ -45,21 +61,7 @@ func findApex(m *dns.Msg, z *dns.Zone) {
 // Handle exact match
 func exactMatch(w dns.ResponseWriter, req, m *dns.Msg, z *dns.Zone, node *dns.ZoneData) {
 	logPrintf("[zone %s] exact match for %s\n", z.Origin, req.Question[0].Name)
-	if parent := z.Up(req.Question[0].Name); parent != nil && parent.NonAuth {
-		logPrintf("[zone %s] referral due\n", z.Origin)
-		m.SetReply(req)
-		m.Ns = parent.RR[dns.TypeNS]
-		for _, n := range m.Ns {
-			if dns.IsSubDomain(n.(*dns.RR_NS).Ns, n.Header().Name) {
-				findGlue(m, z, n.(*dns.RR_NS).Ns)
-			}
-		}
-		ednsFromRequest(req, m)
-		w.Write(m)
-		return
-	}
-
-	// If we have NS records for this name we need to give out a referral
+	// If we have NS records for this name we still need to give out a referral
 	if nss, ok := node.RR[dns.TypeNS]; ok && node.NonAuth {
 		m.SetReply(req)
 		m.Ns = nss
@@ -74,12 +76,7 @@ func exactMatch(w dns.ResponseWriter, req, m *dns.Msg, z *dns.Zone, node *dns.Zo
 	}
 	// If we have the actual type too
 	if rrs, ok := node.RR[req.Question[0].Qtype]; ok {
-		m.SetReply(req)
-		m.MsgHdr.Authoritative = true
-		m.Answer = rrs
-		findApex(m, z)
-		ednsFromRequest(req, m)
-		w.Write(m)
+		answer(w, m, req, rrs, z)
 		return
 	} else { // NoData reply or CNAME
 		m.SetReply(req)
@@ -100,9 +97,7 @@ func exactMatch(w dns.ResponseWriter, req, m *dns.Msg, z *dns.Zone, node *dns.Zo
 		w.Write(m)
 		return
 	}
-	m.SetRcode(req, dns.RcodeNameError)
-	ednsFromRequest(req, m)
-	w.Write(m)
+	nameerror(w, m, req)
 	return
 }
 
@@ -121,11 +116,10 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 	}
 
 	logPrintf("[zone %s] incoming %s %s %d from %s\n", z.Origin, req.Question[0].Name, dns.Rr_str[req.Question[0].Qtype], req.MsgHdr.Id, w.RemoteAddr())
-	node, exact := z.Find(req.Question[0].Name)
-	if exact {
-		exactMatch(w, req, m, z, node)
-	}
-	if node != nil && node.NonAuth {
+	node, exact, ref := z.FindFunc(req.Question[0].Name, func(n interface{}) bool {
+		return n.(*dns.ZoneData).NonAuth
+	})
+	if ref {
 		logPrintf("[zone %s] referral due\n", z.Origin)
 		m.SetReply(req)
 		m.Ns = node.RR[dns.TypeNS]
@@ -138,9 +132,11 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 		w.Write(m)
 		return
 	}
+	if exact {
+		exactMatch(w, req, m, z, node)
+	}
+	// Not an exact match nor an referral
 
-	// Not an exact match, but do we have a wildcard
-	// If we don't have the name return NXDOMAIN
 	if z.Wildcard > 0 {
 		lx := dns.SplitLabels(req.Question[0].Name)
 		wc := "*." + strings.Join(lx[1:], ".")
@@ -149,14 +145,7 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 			logPrintf("[zone %s] wildcard answer\n", z.Origin)
 			// as exact,but not complete -- only the last part
 		}
-		m.SetRcode(req, dns.RcodeNameError)
-		ednsFromRequest(req, m)
-		w.Write(m)
-		return
 	}
-
-	m.SetRcode(req, dns.RcodeNameError)
-	ednsFromRequest(req, m)
-	w.Write(m)
+	nameerror(w, m, req)
 	return
 }
