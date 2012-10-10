@@ -134,6 +134,7 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 	}
 	if exact {
 		exactMatch(w, req, m, z, node)
+		return
 	}
 	// Not an exact match nor an referral
 
