@@ -23,14 +23,14 @@ func answer(w dns.ResponseWriter, m, req *dns.Msg, answer []dns.RR, z *dns.Zone)
 	m.Answer = answer
 	findApex(m, z)
 	ednsFromRequest(req, m)
-	w.Write(m)
+	w.WriteMsg(m)
 	return
 }
 
 func nameerror(w dns.ResponseWriter, m, req *dns.Msg) {
 	m.SetRcode(req, dns.RcodeNameError)
 	ednsFromRequest(req, m)
-	w.Write(m)
+	w.WriteMsg(m)
 }
 
 func findGlue(m *dns.Msg, z *dns.Zone, nameserver string) {
@@ -71,7 +71,7 @@ func exactMatch(w dns.ResponseWriter, req, m *dns.Msg, z *dns.Zone, node *dns.Zo
 			}
 		}
 		ednsFromRequest(req, m)
-		w.Write(m)
+		w.WriteMsg(m)
 		return
 	}
 	// If we have the actual type too
@@ -94,7 +94,7 @@ func exactMatch(w dns.ResponseWriter, req, m *dns.Msg, z *dns.Zone, node *dns.Zo
 
 		}
 		findApex(m, z)
-		w.Write(m)
+		w.WriteMsg(m)
 		return
 	}
 	nameerror(w, m, req)
@@ -111,7 +111,7 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 	if req.Question[0].Qtype == dns.TypeANY {
 		m.SetRcode(req, dns.RcodeServerFailure)
 		ednsFromRequest(req, m)
-		w.Write(m)
+		w.WriteMsg(m)
 		return
 	}
 
@@ -129,7 +129,7 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 			}
 		}
 		ednsFromRequest(req, m)
-		w.Write(m)
+		w.WriteMsg(m)
 		return
 	}
 	if exact {

@@ -35,14 +35,14 @@ func formerr(w dns.ResponseWriter, req *dns.Msg) {
 	if req.IsTsig() != nil {
 		m.SetTsig(userFromTsig(req), dns.HmacMD5, 300, time.Now().Unix())
 	}
-	w.Write(m.SetRcode(req, dns.RcodeFormatError))
+	w.WriteMsg(m.SetRcode(req, dns.RcodeFormatError))
 }
 
 func noerr(w dns.ResponseWriter, req *dns.Msg) {
 	m := new(dns.Msg)
 	m.MsgHdr.Opcode = dns.OpcodeUpdate
 	m.SetTsig(userFromTsig(req), dns.HmacMD5, 300, time.Now().Unix())
-	w.Write(m.SetReply(req))
+	w.WriteMsg(m.SetReply(req))
 }
 
 func userFromTsig(req *dns.Msg) string {
@@ -70,7 +70,7 @@ func metazone(w dns.ResponseWriter, req *dns.Msg, c *Config) {
 			ptr, _ := dns.NewRR("zone. 0 CH PTR " + z.Origin)
 			m.Answer = append(m.Answer, ptr)
 		}
-		w.Write(m)
+		w.WriteMsg(m)
 		return
 	}
 
@@ -203,7 +203,7 @@ func configZONE(w dns.ResponseWriter, req *dns.Msg, t *dns.RR_TXT, c *Config) er
 			m.Extra = append(m.Extra, a)
 		}
 		m.SetTsig(userFromTsig(req), dns.HmacMD5, 300, time.Now().Unix())
-		w.Write(m)
+		w.WriteMsg(m)
 	}
 	return nil
 }
