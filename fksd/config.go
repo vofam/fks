@@ -123,7 +123,7 @@ func config(w dns.ResponseWriter, req *dns.Msg, c *Config) {
 	logPrintf("config command ok")
 
 	for _, rr := range req.Ns {
-		t, ok := rr.(*dns.RR_TXT)
+		t, ok := rr.(*dns.TXT)
 
 		if !ok {
 			formerr(w, req)
@@ -154,7 +154,7 @@ func config(w dns.ResponseWriter, req *dns.Msg, c *Config) {
 }
 
 // Deal with the zone options
-func configZONE(w dns.ResponseWriter, req *dns.Msg, t *dns.RR_TXT, c *Config) error {
+func configZONE(w dns.ResponseWriter, req *dns.Msg, t *dns.TXT, c *Config) error {
 	sx := strings.Split(t.Txt[0], " ")
 	if len(sx) == 0 {
 		return nil
@@ -209,7 +209,7 @@ func configZONE(w dns.ResponseWriter, req *dns.Msg, t *dns.RR_TXT, c *Config) er
 }
 
 // Deal with the user options
-func configUSER(w dns.ResponseWriter, req *dns.Msg, t *dns.RR_TXT, c *Config) error {
+func configUSER(w dns.ResponseWriter, req *dns.Msg, t *dns.TXT, c *Config) error {
 	sx := strings.Split(t.Txt[0], " ")
 	if len(sx) == 0 {
 		return nil
