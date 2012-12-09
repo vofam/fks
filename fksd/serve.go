@@ -10,7 +10,7 @@ import (
 func ednsFromRequest(req, m *dns.Msg) {
 	for _, r := range req.Extra {
 		if r.Header().Rrtype == dns.TypeOPT {
-			m.SetEdns0(4096, r.(*dns.RR_OPT).Do())
+			m.SetEdns0(4096, r.(*dns.OPT).Do())
 			return
 		}
 	}
@@ -66,8 +66,8 @@ func exactMatch(w dns.ResponseWriter, req, m *dns.Msg, z *dns.Zone, node *dns.Zo
 		m.SetReply(req)
 		m.Ns = nss
 		for _, n := range m.Ns {
-			if dns.IsSubDomain(n.(*dns.RR_NS).Ns, n.Header().Name) {
-				findGlue(m, z, n.(*dns.RR_NS).Ns)
+			if dns.IsSubDomain(n.(*dns.NS).Ns, n.Header().Name) {
+				findGlue(m, z, n.(*dns.NS).Ns)
 			}
 		}
 		ednsFromRequest(req, m)
@@ -115,7 +115,7 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 		return
 	}
 
-	logPrintf("[zone %s] incoming %s %s %d from %s\n", z.Origin, req.Question[0].Name, dns.Rr_str[req.Question[0].Qtype], req.MsgHdr.Id, w.RemoteAddr())
+	logPrintf("[zone %s] incoming %s %s %d from %s\n", z.Origin, req.Question[0].Name, dns.TypeToString[req.Question[0].Qtype], req.MsgHdr.Id, w.RemoteAddr())
 	node, exact, ref := z.FindFunc(req.Question[0].Name, func(n interface{}) bool {
 		return n.(*dns.ZoneData).NonAuth
 	})
@@ -124,8 +124,8 @@ func serve(w dns.ResponseWriter, req *dns.Msg, z *dns.Zone) {
 		m.SetReply(req)
 		m.Ns = node.RR[dns.TypeNS]
 		for _, n := range m.Ns {
-			if dns.IsSubDomain(n.(*dns.RR_NS).Ns, n.Header().Name) {
-				findGlue(m, z, n.(*dns.RR_NS).Ns)
+			if dns.IsSubDomain(n.(*dns.NS).Ns, n.Header().Name) {
+				findGlue(m, z, n.(*dns.NS).Ns)
 			}
 		}
 		ednsFromRequest(req, m)

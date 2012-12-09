@@ -41,7 +41,7 @@ func (c *Config) ReadZoneXfr(origin, master string) error {
 	m.SetAxfr(origin)
 
 	z := dns.NewZone(origin)
-	t, e := client.XfrReceive(m, master)
+	t, e := client.TransferIn(m, master)
 	if e == nil {
 		for r := range t {
 			if r.Error == nil {
