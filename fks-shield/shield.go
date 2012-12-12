@@ -30,28 +30,28 @@ func serve(w dns.ResponseWriter, r *dns.Msg, c *Cache) {
 	case r.IsUpdate():
 		client := new(dns.Client)
 		if p, e := client.Exchange(r, *server); e == nil {
-			w.Write(p)
+			w.WriteMsg(p)
 		}
 		return
 	}
 	if p := c.Find(r); p != nil {
 		b := []byte{byte(r.MsgHdr.Id >> 8), byte(r.MsgHdr.Id)}
 		p = append(b, p...)
-		w.WriteBuf(p)
+		w.Write(p)
 		return
 	}
 	// Cache miss
 	client := new(dns.Client)
 	if p, e := client.Exchange(r, *server); e == nil {
 		// TODO(mg): If r has edns0 and p has not we create a mismatch here
-		w.Write(p)
+		w.WriteMsg(p)
 		c.Insert(p)
 		return
 	} else {
 		log.Printf("fks-shield: failed to get answer " + e.Error())
 		m := new(dns.Msg)
 		m.SetRcode(r, dns.RcodeServerFailure)
-		w.Write(m)
+		w.WriteMsg(m)
 	}
 }
 

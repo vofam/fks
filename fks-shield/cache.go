@@ -19,7 +19,7 @@ func toRadixKey(d *dns.Msg) string {
 	s := fmt.Sprintf("%s,%d,%d", strings.ToLower(d.Question[0].Name), d.Question[0].Qtype, d.Question[0].Qclass)
 	for _, r := range d.Extra {
 		if r.Header().Rrtype == dns.TypeOPT {
-			if r.(*dns.RR_OPT).Do() {
+			if r.(*dns.OPT).Do() {
 				return s + "D"
 			}
 		}
